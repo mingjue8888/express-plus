@@ -201,7 +201,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         Reflect.set(res, "signToken", function(userid: string) {
             if (opt?.jwt?.secret && opt?.jwt.expiresIn) {
                 const { payload, accessToken } = signToken(userid, opt.jwt.secret, opt.jwt.expiresIn);
-                res.header("new-access-token", accessToken);
+                res.header("X-New-Access-Token", accessToken);
                 opt?.whenTokenSigned?.(payload, accessToken);
             }
         });
