@@ -11,7 +11,6 @@ import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
 import JwtPayload from "./jwt-payload";
-import * as encoder from "./password-encoder";
 import ResponseError from "./response-error";
 import Router from "./router";
 import ServerError from "./server-error";
@@ -86,11 +85,16 @@ interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
 
     findUser?:
-        <T extends LoginUser<LoginSession>>(userid: string) => Promise<T>;
+        <T extends LoginUser<LoginSession>>(payload: JwtPayload) => Promise<T>;
 
     whenTokenSigned?:
         (payload: JwtPayload, accessToken: string) => Promise<void>;
 }
+
+const oneSecond = 1000;
+const oneMinute = oneSecond * 60;
+const oneHour = oneMinute * 60;
+const oneDay = oneHour * 24;
 
 const optSchema = Joi.object<StartupOptions>({
     APP_PORT: Joi.number()
@@ -109,11 +113,21 @@ const optSchema = Joi.object<StartupOptions>({
     JWT_SECRET: Joi.string(),
     JWT_EXPIRES_IN: Joi.number()
         .integer()
-        .greater(0),
+        .greater(0)
+        .when("JWT_SECRET", {
+            is: Joi.exist(),
+            then: Joi.required()
+                .default(oneDay * 2)
+        }),
 
     JWT_EXPIRES_BEFORE_REFRESH: Joi.number()
         .integer()
-        .greater(0),
+        .greater(0)
+        .when("JWT_SECRET", {
+            is: Joi.exist(),
+            then: Joi.required()
+                .default(oneHour * 2)
+        }),
 });
 
 export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
@@ -135,18 +149,12 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
 
         const strategy = new Strategy(jwtStrategy, function (payload: JwtPayload, next) {
             if (conf.JWT_SECRET) {
-                const key = issKey(payload, conf.JWT_SECRET);
-                const isPass = encoder.check(key, payload.iss);
-                if (!isPass) {
-                    next(new UnauthorizedResponseError("FakeTokenError"), false);
-                    return;
-                }
                 if (payload.exp < Math.floor(Date.now() / 1000)) {
                     next(new UnauthorizedResponseError("ExpiredTokenError"), false);
                     return;
                 }
                 if (opt?.findUser) {
-                    opt.findUser(payload.sub)
+                    opt.findUser(payload)
                         .then(user => next(null, user))
                         .catch(err => next(err, false));
                     return;
@@ -159,35 +167,6 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         passport.use(strategy);
     }
 
-    function issKey(payload: JwtPayload, secret: string): string {
-         const params = [
-            `exp=${payload.exp}`,
-            `iat=${payload.iat}`,
-            `jti=${payload.jti}`,
-            `sub=${payload.sub}`,
-            `secret=${secret}`,
-        ].join("&");
-
-        return crypto.createHash("sha256")
-            .update(params)
-            .digest("hex");
-    }
-
-    function signToken(userid: string, secret: string, expiresIn: number): { payload: JwtPayload, accessToken: string } {
-        const payload: JwtPayload = {
-            sub: userid,
-            exp: Math.floor(Date.now() / 1000 + expiresIn),
-            jti: crypto.randomBytes(32).toString("hex"),
-            iss: "",
-            iat: Math.floor(Date.now() / 1000),
-        }
-        payload.iss = encoder.encode(issKey(payload, secret));
-        return {
-            payload,
-            accessToken: jwt.sign(payload, secret)
-        }
-    }
-
     function preRoute(
         req: express.Request,
         res: express.Response,
@@ -195,23 +174,33 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     ) {
         Reflect.set(res, "signToken", function(userid: string) {
             if (conf.JWT_SECRET && conf.JWT_EXPIRES_IN) {
-                const { payload, accessToken } = signToken(userid, conf.JWT_SECRET, conf.JWT_EXPIRES_IN);
+                const payload: JwtPayload = {
+                    sub: userid,
+                    exp: Math.floor(Date.now() / 1000 + conf.JWT_EXPIRES_IN),
+                    jti: crypto.randomBytes(32).toString("hex"),
+                }
+                const accessToken = jwt.sign(payload, conf.JWT_SECRET)
                 res.header("X-New-Access-Token", accessToken);
                 opt?.whenTokenSigned?.(payload, accessToken);
             }
         });
 
         Reflect.set(res, "refreshToken", function() {
-            if (conf.JWT_EXPIRES_BEFORE_REFRESH && req.user?.session?.jwtPayload) {
-                const diff = req.user.session.jwtPayload.exp - Math.floor(Date.now() / 1000);
-                const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
-                if (isNear) {
-                    res.signToken(req.user.session.jwtPayload.sub);
+            if (req.user) {
+                if (conf.JWT_EXPIRES_BEFORE_REFRESH) {
+                    const diff = req.user.session.jwtPayload.exp - Math.floor(Date.now() / 1000);
+                    const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
+                    if (isNear) {
+                        res.signToken(req.user.session.jwtPayload.sub);
+                    }
                 }
             }
         });
 
-        Reflect.get(res, "refreshToken")();
+        if (req.user) {
+            res.refreshToken();
+        }
+
         next();
     }
 
