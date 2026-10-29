@@ -1,9 +1,9 @@
 import {
+    ErrorRequestHandler,
     Handler,
     NextFunction,
     Request,
     RequestHandler,
-    ErrorRequestHandler,
     Response
 } from "express";
 
