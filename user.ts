@@ -1,7 +1,7 @@
 import JwtPayload from "./jwt-payload";
 
 export interface LoginSession {
-    jwtPayload: JwtPayload;
+    storedToken: JwtPayload;
 }
 
 export interface LoginUser<T extends LoginSession> {

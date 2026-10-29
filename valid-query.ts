@@ -1,5 +1,4 @@
 import Joi from "joi";
-import _ from "lodash";
 import asyncMiddleware from "./async-middleware";
 import WrongParamsResponseError from "./wrong-params-response-error";
 
@@ -13,7 +12,6 @@ export default function validQuery(sch: Record<string, Joi.AnySchema>) {
         if (error) {
             throw new WrongParamsResponseError(`WrongParamsError: ${error.details}`)
         }
-
-        _.set(req, ["valid", "query"], value);
+        req.valid.query = value;
     });
 }

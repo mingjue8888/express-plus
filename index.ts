@@ -85,7 +85,7 @@ interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
 
     findUser?:
-        <T extends LoginUser<LoginSession>>(payload: JwtPayload) => Promise<T>;
+        <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
 
     whenTokenSigned?:
         (payload: JwtPayload, accessToken: string) => Promise<void>;
@@ -154,7 +154,12 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
                     return;
                 }
                 if (opt?.findUser) {
-                    opt.findUser(payload)
+                    const isOffline = (u: LoginUser<LoginSession>) =>
+                        u.session.storedToken.jti === payload.jti;
+
+                    opt.findUser(payload.sub)
+                        .then(user =>
+                            isOffline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError")))
                         .then(user => next(null, user))
                         .catch(err => next(err, false));
                     return;
@@ -172,7 +177,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         res: express.Response,
         next: express.NextFunction
     ) {
-        Reflect.set(res, "signToken", function(userid: string) {
+        res.signToken = (userid: string) => {
             if (conf.JWT_SECRET && conf.JWT_EXPIRES_IN) {
                 const payload: JwtPayload = {
                     sub: userid,
@@ -183,19 +188,17 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
                 res.header("X-New-Access-Token", accessToken);
                 opt?.whenTokenSigned?.(payload, accessToken);
             }
-        });
+        }
 
-        Reflect.set(res, "refreshToken", function() {
-            if (req.user) {
-                if (conf.JWT_EXPIRES_BEFORE_REFRESH) {
-                    const diff = req.user.session.jwtPayload.exp - Math.floor(Date.now() / 1000);
-                    const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
-                    if (isNear) {
-                        res.signToken(req.user.session.jwtPayload.sub);
-                    }
+        res.refreshToken = () => {
+            if (req.user && conf.JWT_EXPIRES_BEFORE_REFRESH) {
+                const diff = req.user.session.storedToken.exp - Math.floor(Date.now() / 1000);
+                const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
+                if (isNear) {
+                    res.signToken(req.user.session.storedToken.sub);
                 }
             }
-        });
+        }
 
         if (req.user) {
             res.refreshToken();
