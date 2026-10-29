@@ -154,12 +154,12 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
                     return;
                 }
                 if (opt?.findUser) {
-                    const isOffline = (u: LoginUser<LoginSession>) =>
+                    const isOnline = (u: LoginUser<LoginSession>) =>
                         u.session.storedToken.jti === payload.jti;
 
                     opt.findUser(payload.sub)
                         .then(user =>
-                            isOffline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError")))
+                            isOnline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError")))
                         .then(user => next(null, user))
                         .catch(err => next(err, false));
                     return;
