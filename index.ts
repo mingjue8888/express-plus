@@ -73,7 +73,7 @@ declare global {
     }
 }
 
-interface DotEnvOptions {
+interface EnvOptions {
     APP_PORT: number;
     APP_REQUEST_RATE_LIMIT: number;
     APP_REQUEST_RATE_LIMIT_RANGE: number;
@@ -82,7 +82,7 @@ interface DotEnvOptions {
     JWT_EXPIRES_BEFORE_REFRESH?: number;
 }
 
-interface StartupOptions extends DotEnvOptions {
+interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
 
     findUser?:
