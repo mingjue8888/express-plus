@@ -215,7 +215,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
 
     return express()
         .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
-        .use(cors({ optionsSuccessStatus: 200 }))
+        .use(cors())
         .use(morgan(":method :url :status :res[content-length] - :response-time ms"))
         .use(compression())
         .use(express.urlencoded({ extended: true }))
