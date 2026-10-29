@@ -1,0 +1,28 @@
+{
+  "name": "express-plus",
+  "version": "1.0.0",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "compression": "^1.8.2",
+    "cors": "^2.8.6",
+    "express-rate-limit": "^8.7.1",
+    "joi": "^18.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "lodash": "^4.18.1",
+    "morgan": "^1.12.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/lodash": "^4.17.27",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^26.6.5",
+    "@types/passport": "^1.0.17",
+    "@types/passport-jwt": "^4.0.1",
+    "typescript": "^7.0.2"
+  }
+}
