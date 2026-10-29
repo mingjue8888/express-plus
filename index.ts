@@ -93,25 +93,25 @@ interface StartupOptions extends EnvOptions {
 }
 
 const optSchema = Joi.object<StartupOptions>({
-    "APP_PORT": Joi.number()
+    APP_PORT: Joi.number()
         .integer()
         .required()
         .default(3000),
 
-    "APP_REQUEST_RATE_LIMIT": Joi.number()
+    APP_REQUEST_RATE_LIMIT: Joi.number()
         .required()
         .default(20),
 
-    "APP_REQUEST_RATE_LIMIT_RANGE": Joi.number()
+    APP_REQUEST_RATE_LIMIT_RANGE: Joi.number()
         .required()
         .default(1000),
 
-    "JWT_SECRET": Joi.string(),
-    "JWT_EXPIRES_IN": Joi.number()
+    JWT_SECRET: Joi.string(),
+    JWT_EXPIRES_IN: Joi.number()
         .integer()
         .greater(0),
 
-    "JWT_EXPIRES_BEFORE_REFRESH": Joi.number()
+    JWT_EXPIRES_BEFORE_REFRESH: Joi.number()
         .integer()
         .greater(0),
 });
