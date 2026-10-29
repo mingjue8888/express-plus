@@ -10,7 +10,7 @@ export default function validBody(sch: Record<string, Joi.AnySchema>) {
             .validate(req.body, { allowUnknown: true });
 
         if (error) {
-            throw new WrongParamsResponseError(`WrongParamsError: ${error.details}`)
+            throw new WrongParamsResponseError("WrongBodyError", error.message);
         }
         req.valid.body = value;
     });

@@ -10,7 +10,7 @@ export default function validQuery(sch: Record<string, Joi.AnySchema>) {
             .validate(req.query, { allowUnknown: true });
 
         if (error) {
-            throw new WrongParamsResponseError(`WrongParamsError: ${error.details}`)
+            throw new WrongParamsResponseError("WrongQueryError", error.message);
         }
         req.valid.query = value;
     });

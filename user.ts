@@ -1,10 +1,8 @@
-import JwtPayload from "./jwt-payload";
+import JwtStored from "./jwt-stored";
 
-export interface LoginSession {
-    storedToken: JwtPayload;
-}
-
-export interface LoginUser<T extends LoginSession> {
+export default interface LoginUser {
     id: string;
-    session: T;
+    loginToken: JwtStored;
+    roles: string[];
+    permissions: string[];
 }

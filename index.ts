@@ -15,7 +15,7 @@ import ResponseError from "./response-error";
 import Router from "./router";
 import ServerError from "./server-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
-import {LoginSession, LoginUser} from "./user";
+import LoginUser from "./user";
 import "dotenv/config";
 
 type DeepArray<T> =
@@ -54,17 +54,17 @@ function errorHandler(
     if (err instanceof ResponseError) {
         res
             .status(err.getHttpResponseStatus())
-            .send({ message: err.message });
+            .send({ error: err.error, message: err.message });
     } else {
         res
             .status(500)
-            .send({ message: `ServerError: ${err.message}; ErrorStack: ${err.stack}` });
+            .send({ error: "ServerError", message: err.stack });
     }
 }
 
 declare global {
     namespace Express {
-        interface User extends LoginUser<LoginSession> {}
+        interface User extends LoginUser {}
         interface Response {
             signToken: (userid: string) => void;
             refreshToken: () => void;
@@ -85,7 +85,7 @@ interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
 
     findUser?:
-        <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
+        <T extends LoginUser>(id: string) => Promise<T>;
 
     whenTokenSigned?:
         (payload: JwtPayload, accessToken: string) => Promise<void>;
@@ -150,23 +150,23 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         const strategy = new Strategy(jwtStrategy, function (payload: JwtPayload, next) {
             if (conf.JWT_SECRET) {
                 if (payload.exp < Math.floor(Date.now() / 1000)) {
-                    next(new UnauthorizedResponseError("ExpiredTokenError"), false);
+                    next(new UnauthorizedResponseError("ExpiredTokenError", "The token has expired"), false);
                     return;
                 }
                 if (opt?.findUser) {
-                    const isOnline = (u: LoginUser<LoginSession>) =>
-                        u.session.storedToken.jti === payload.jti;
+                    const isOnline = (u: LoginUser) =>
+                        !u.loginToken.isLogout && u.loginToken.payload.jti === payload.jti;
 
                     opt.findUser(payload.sub)
                         .then(user =>
-                            isOnline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError")))
+                            isOnline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError", "Account was logout or logged in from another location")))
                         .then(user => next(null, user))
                         .catch(err => next(err, false));
                     return;
                 }
             }
 
-            next(new ServerError("ServerError: Cannot find the logic for findUser."), false);
+            next(new ServerError("ServerError", "Cannot find the logic for findUser"), false);
         });
 
         passport.use(strategy);
@@ -192,10 +192,10 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
 
         res.refreshToken = () => {
             if (req.user && conf.JWT_EXPIRES_BEFORE_REFRESH) {
-                const diff = req.user.session.storedToken.exp - Math.floor(Date.now() / 1000);
+                const diff = req.user.loginToken.payload.exp - Math.floor(Date.now() / 1000);
                 const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
                 if (isNear) {
-                    res.signToken(req.user.session.storedToken.sub);
+                    res.signToken(req.user.loginToken.payload.sub);
                 }
             }
         }
