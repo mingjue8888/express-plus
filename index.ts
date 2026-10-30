@@ -68,6 +68,7 @@ declare global {
         interface Response {
             signToken: (userid: string) => void;
             refreshToken: () => void;
+            body?: any;
         }
     }
 }
