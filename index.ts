@@ -27,7 +27,7 @@ import LoginUser from "./login-user";
 import PermissionDeniedResponseError from "./permission-denied-response-error";
 import ResponseError from "./response-error";
 import Router from "./router";
-import ServerExceptionResponseError from "././server-exception-response-error";
+import ServerExceptionResponseError from "./server-exception-response-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
 import WrongParamsResponseError from "./wrong-params-response-error";
 
