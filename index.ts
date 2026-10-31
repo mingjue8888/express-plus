@@ -27,7 +27,7 @@ import LoginUser from "./login-user";
 import PermissionDeniedResponseError from "./permission-denied-response-error";
 import ResponseError from "./response-error";
 import Router from "./router";
-import ServerError from "./server-error";
+import ServerExceptionResponseError from "././server-exception-response-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
 import WrongParamsResponseError from "./wrong-params-response-error";
 
@@ -72,7 +72,7 @@ const defaultErrorConverter: ErrorConverter = function(err: Error) {
     }
     if (err instanceof CannotFindUserError
         || err instanceof WrongResponseError) {
-        return new ServerError(err.constructor.name, err.message);
+        return new ServerExceptionResponseError(err.constructor.name, err.message);
     }
 }
 
@@ -89,7 +89,7 @@ function errorHandler(
     } else {
         res
             .status(500)
-            .send({ error: "ServerError", message: err.stack });
+            .send({ error: "ServerExceptionResponseError", message: err.stack });
     }
 }
 
