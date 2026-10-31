@@ -10,12 +10,14 @@ import * as crypto from "node:crypto";
 import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
-import JwtPayload from "./jwt-payload";
+import LoginSession from "./login-session";
+import LoginToken from "./login-token";
+import JwtPayload from "./login-token";
+import LoginUser from "./login-user";
 import ResponseError from "./response-error";
 import Router from "./router";
 import ServerError from "./server-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
-import LoginUser from "./user";
 import "dotenv/config";
 
 type DeepArray<T> =
@@ -45,6 +47,34 @@ function errorConverter(convert?: ErrorConverter): Middleware {
     }
 }
 
+class TokenExpiredError extends Error {
+    constructor() {
+        super("The token has expired");
+    }
+}
+
+class TokenOfflineError extends Error {
+    constructor() {
+        super("Account was logout or logged in from another location");
+    }
+}
+
+class CannotFindUserError extends Error {
+    constructor() {
+        super("Cannot find the logic for findUser");
+    }
+}
+
+const defaultErrorConverter: ErrorConverter = function(err: Error) {
+    if (err instanceof TokenExpiredError
+        || err instanceof TokenOfflineError) {
+        return new UnauthorizedResponseError(err.constructor.name, err.message);
+    }
+    if (err instanceof CannotFindUserError) {
+        return new ServerError(err.constructor.name, err.message);
+    }
+}
+
 function errorHandler(
     err: Error,
     _req: express.Request,
@@ -64,10 +94,9 @@ function errorHandler(
 
 declare global {
     namespace Express {
-        interface User extends LoginUser {}
+        interface User extends LoginUser<LoginSession> {}
         interface Response {
             signToken: (userid: string) => void;
-            refreshToken: () => void;
             body?: any;
         }
     }
@@ -77,19 +106,18 @@ interface EnvOptions {
     APP_PORT: number;
     APP_REQUEST_RATE_LIMIT: number;
     APP_REQUEST_RATE_LIMIT_RANGE: number;
-    JWT_SECRET?: string;
-    JWT_EXPIRES_IN?: number;
-    JWT_EXPIRES_BEFORE_REFRESH?: number;
+    JWT_SECRET: string;
+    JWT_EXPIRES_IN: number;
+    JWT_EXPIRED_BEFORE_REFRESH: number;
 }
 
 interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
-
     findUser?:
-        <T extends LoginUser>(id: string) => Promise<T>;
+        <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
 
     whenTokenSigned?:
-        (payload: JwtPayload, accessToken: string) => Promise<void>;
+        (payload: LoginToken, accessToken: string) => Promise<void>;
 }
 
 const oneSecond = 1000;
@@ -111,7 +139,10 @@ const optSchema = Joi.object<StartupOptions>({
         .required()
         .default(1000),
 
-    JWT_SECRET: Joi.string(),
+    JWT_SECRET: Joi.string()
+        .required()
+        .default("DefaultSecret"),
+
     JWT_EXPIRES_IN: Joi.number()
         .integer()
         .greater(0)
@@ -121,7 +152,7 @@ const optSchema = Joi.object<StartupOptions>({
                 .default(oneDay * 2)
         }),
 
-    JWT_EXPIRES_BEFORE_REFRESH: Joi.number()
+    JWT_EXPIRED_BEFORE_REFRESH: Joi.number()
         .integer()
         .greater(0)
         .when("JWT_SECRET", {
@@ -141,70 +172,60 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     const conf: StartupOptions =
         Joi.attempt(opt, optSchema, { allowUnknown: true });
 
-    if (conf.JWT_SECRET) {
-        const jwtStrategy: StrategyOptions = {
-            secretOrKey: conf.JWT_SECRET,
-            jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-            ignoreExpiration: true,
-        }
-
-        const strategy = new Strategy(jwtStrategy, function (payload: JwtPayload, next) {
-            if (conf.JWT_SECRET) {
-                if (payload.exp < Math.floor(Date.now() / 1000)) {
-                    next(new UnauthorizedResponseError("ExpiredTokenError", "The token has expired"), false);
-                    return;
-                }
-                if (opt?.findUser) {
-                    const isOnline = (u: LoginUser) =>
-                        !u.loginToken.isLogout && u.loginToken.payload.jti === payload.jti;
-
-                    opt.findUser(payload.sub)
-                        .then(user =>
-                            isOnline(user) ? user : Promise.reject(new UnauthorizedResponseError("TokenOfflineError", "Account was logout or logged in from another location")))
-                        .then(user => next(null, user))
-                        .catch(err => next(err, false));
-                    return;
-                }
-            }
-
-            next(new ServerError("ServerError", "Cannot find the logic for findUser"), false);
-        });
-
-        passport.use(strategy);
+    const jwtStrategy: StrategyOptions = {
+        secretOrKey: conf.JWT_SECRET,
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ignoreExpiration: true,
     }
 
-    function preRoute(
+    const strategy = new Strategy(jwtStrategy, function (payload: JwtPayload, next) {
+        if (!opt?.findUser) {
+            next(new CannotFindUserError(), false);
+            return;
+        }
+        const isExpired = (exp: number): boolean =>
+            exp < Math.floor(Date.now() / 1000);
+
+        if (isExpired(payload.exp)) {
+            next(new TokenExpiredError(), false);
+            return;
+        }
+        const isOnline = (u: LoginUser<LoginSession>): boolean =>
+            !u.session.isLogout && u.session.token.jti === payload.jti;
+
+        opt.findUser(payload.sub)
+            .then(user =>
+                isOnline(user) ? user : Promise.reject(new TokenExpiredError()))
+            .then(user => next(null, user))
+            .catch(err => next(err, false));
+    });
+
+    passport.use(strategy);
+
+    function jwtSettings(
         req: express.Request,
         res: express.Response,
         next: express.NextFunction
     ) {
-        res.signToken = (userid: string) => {
-            if (conf.JWT_SECRET && conf.JWT_EXPIRES_IN) {
-                const payload: JwtPayload = {
-                    sub: userid,
-                    exp: Math.floor(Date.now() / 1000 + conf.JWT_EXPIRES_IN),
-                    jti: crypto.randomBytes(32).toString("hex"),
-                }
-                const accessToken = jwt.sign(payload, conf.JWT_SECRET)
-                res.header("X-New-Access-Token", accessToken);
-                opt?.whenTokenSigned?.(payload, accessToken);
-            }
+        const now = ~~(Date.now() /1000);
+        const makeExp = () => now + conf.JWT_EXPIRES_IN;
+        const makeJti = () => crypto.randomBytes(32).toString("hex");
+        res.signToken = function(userid: string) {
+            const token = { sub: userid, exp: makeExp(), jti: makeJti() };
+            const accessToken = jwt.sign(token, userid);
+            res.header("X-New-Access-Token", accessToken);
+            opt?.whenTokenSigned?.(token, accessToken);
         }
-
-        res.refreshToken = () => {
-            if (req.user && conf.JWT_EXPIRES_BEFORE_REFRESH) {
-                const diff = req.user.loginToken.payload.exp - Math.floor(Date.now() / 1000);
-                const isNear = diff > 0 && diff < conf.JWT_EXPIRES_BEFORE_REFRESH;
-                if (isNear) {
-                    res.signToken(req.user.loginToken.payload.sub);
-                }
-            }
-        }
-
         if (req.user) {
-            res.refreshToken();
+            const tokenExp = req.user.session.token.exp;
+            const diffCurr = tokenExp - now;
+            const isNearRefreshTime =
+                diffCurr > 0 &&
+                diffCurr < conf.JWT_EXPIRED_BEFORE_REFRESH;
+            if (isNearRefreshTime) {
+                res.signToken(req.user.session.token.sub);
+            }
         }
-
         next();
     }
 
@@ -222,8 +243,9 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
         .use(passport.initialize())
-        .use(preRoute)
+        .use(jwtSettings)
         .use(routes)
+        .use(errorConverter(defaultErrorConverter))
         .use(errorConverter(opt?.errorConverter))
         .use(errorHandler)
         .listen(conf.APP_PORT, () => console.info(`Server startup on port: ${conf.APP_PORT}`));
