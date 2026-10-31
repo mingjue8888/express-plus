@@ -1,3 +1,4 @@
+import "dotenv/config";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
@@ -15,7 +16,9 @@ import {
     NotQualifiedError,
     PermissionDeniedError,
     TokenExpiredError,
-    TokenOfflineError, WrongParamsError, WrongResponseError
+    TokenOfflineError,
+    WrongParamsError,
+    WrongResponseError
 } from "./errors";
 import LoginSession from "./login-session";
 import LoginToken from "./login-token";
@@ -26,7 +29,6 @@ import ResponseError from "./response-error";
 import Router from "./router";
 import ServerError from "./server-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
-import "dotenv/config";
 import WrongParamsResponseError from "./wrong-params-response-error";
 
 type DeepArray<T> =
