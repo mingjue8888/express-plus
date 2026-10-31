@@ -1,7 +1,7 @@
 import passport from "passport";
 import {Middleware} from "./async-middleware";
 
-const needLogin: Middleware =
+const hasLogin: Middleware =
     passport.authenticate("jwt", { session: false });
 
-export default needLogin;
+export default hasLogin;
