@@ -1,6 +1,6 @@
 import _ from "lodash";
 import asyncMiddleware, {Middleware} from "./async-middleware";
-import PermissionDeniedResponseError from "./permission-denied-response-error";
+import {NotQualifiedError} from "./errors";
 
 
 export default function hasRoles(roles: string[]): Middleware {
@@ -9,7 +9,7 @@ export default function hasRoles(roles: string[]): Middleware {
             .length === 0;
 
         if (noRole) {
-            throw new PermissionDeniedResponseError("NotQualifiedError", "You do not meet the qualifications");
+            throw new NotQualifiedError();
         }
     });
 }

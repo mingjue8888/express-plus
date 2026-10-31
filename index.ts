@@ -10,10 +10,18 @@ import * as crypto from "node:crypto";
 import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
+import {
+    CannotFindUserError,
+    NotQualifiedError,
+    PermissionDeniedError,
+    TokenExpiredError,
+    TokenOfflineError
+} from "./errors";
 import LoginSession from "./login-session";
 import LoginToken from "./login-token";
 import JwtPayload from "./login-token";
 import LoginUser from "./login-user";
+import PermissionDeniedResponseError from "./permission-denied-response-error";
 import ResponseError from "./response-error";
 import Router from "./router";
 import ServerError from "./server-error";
@@ -47,28 +55,14 @@ function errorConverter(convert?: ErrorConverter): Middleware {
     }
 }
 
-class TokenExpiredError extends Error {
-    constructor() {
-        super("The token has expired");
-    }
-}
-
-class TokenOfflineError extends Error {
-    constructor() {
-        super("Account was logout or logged in from another location");
-    }
-}
-
-class CannotFindUserError extends Error {
-    constructor() {
-        super("Cannot find the logic for findUser");
-    }
-}
-
 const defaultErrorConverter: ErrorConverter = function(err: Error) {
     if (err instanceof TokenExpiredError
         || err instanceof TokenOfflineError) {
         return new UnauthorizedResponseError(err.constructor.name, err.message);
+    }
+    if (err instanceof PermissionDeniedError
+        || err instanceof NotQualifiedError) {
+        return new PermissionDeniedResponseError(err.constructor.name, err.message);
     }
     if (err instanceof CannotFindUserError) {
         return new ServerError(err.constructor.name, err.message);
@@ -129,7 +123,7 @@ const optSchema = Joi.object<StartupOptions>({
     APP_PORT: Joi.number()
         .integer()
         .required()
-        .default(3000),
+        .default(8086),
 
     APP_REQUEST_RATE_LIMIT: Joi.number()
         .required()

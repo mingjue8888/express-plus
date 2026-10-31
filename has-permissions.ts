@@ -1,6 +1,6 @@
 import _ from "lodash";
 import asyncMiddleware, {Middleware} from "./async-middleware";
-import PermissionDeniedResponseError from "./permission-denied-response-error";
+import {PermissionDeniedError} from "./errors";
 
 
 export default function hasPermissions(permissions: string[]): Middleware {
@@ -9,7 +9,7 @@ export default function hasPermissions(permissions: string[]): Middleware {
             .length === 0;
 
         if (noPermission) {
-            throw new PermissionDeniedResponseError("PermissionDeniedError", "You do not have permission.");
+            throw new PermissionDeniedError();
         }
     });
 }
