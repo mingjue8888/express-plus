@@ -1,3 +1,5 @@
+export class WrongParamsError extends Error {}
+export class WrongResponseError extends Error {}
 
 export class TokenExpiredError extends Error {
     constructor() {

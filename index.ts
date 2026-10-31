@@ -15,7 +15,7 @@ import {
     NotQualifiedError,
     PermissionDeniedError,
     TokenExpiredError,
-    TokenOfflineError
+    TokenOfflineError, WrongParamsError, WrongResponseError
 } from "./errors";
 import LoginSession from "./login-session";
 import LoginToken from "./login-token";
@@ -27,6 +27,7 @@ import Router from "./router";
 import ServerError from "./server-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
 import "dotenv/config";
+import WrongParamsResponseError from "./wrong-params-response-error";
 
 type DeepArray<T> =
     | T[]
@@ -56,6 +57,9 @@ function errorConverter(convert?: ErrorConverter): Middleware {
 }
 
 const defaultErrorConverter: ErrorConverter = function(err: Error) {
+    if (err instanceof WrongParamsError) {
+        return new WrongParamsResponseError(err.constructor.name, err.message);
+    }
     if (err instanceof TokenExpiredError
         || err instanceof TokenOfflineError) {
         return new UnauthorizedResponseError(err.constructor.name, err.message);
@@ -64,7 +68,8 @@ const defaultErrorConverter: ErrorConverter = function(err: Error) {
         || err instanceof NotQualifiedError) {
         return new PermissionDeniedResponseError(err.constructor.name, err.message);
     }
-    if (err instanceof CannotFindUserError) {
+    if (err instanceof CannotFindUserError
+        || err instanceof WrongResponseError) {
         return new ServerError(err.constructor.name, err.message);
     }
 }

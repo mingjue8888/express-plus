@@ -1,6 +1,6 @@
 import Joi from "joi";
 import asyncMiddleware from "./async-middleware";
-import WrongParamsResponseError from "./wrong-params-response-error";
+import {WrongParamsError} from "./errors";
 
 
 export default function validParam(sch: Record<string, Joi.AnySchema>) {
@@ -10,7 +10,7 @@ export default function validParam(sch: Record<string, Joi.AnySchema>) {
             .validate(req.params, { allowUnknown: true });
 
         if (error) {
-            throw new WrongParamsResponseError("WrongParamError", error.message);
+            throw new WrongParamsError(error.message);
         }
         req.valid.param = value;
     });
