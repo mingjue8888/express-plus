@@ -89,7 +89,7 @@ function errorHandler(
     } else {
         res
             .status(500)
-            .send({ error: "ServerExceptionResponseError", message: err.stack });
+            .send({ error: "ServerError", message: err.stack });
     }
 }
 
