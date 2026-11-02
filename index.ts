@@ -117,6 +117,7 @@ interface EnvOptions {
 
 interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
+    morganFormat?: string;
     logger?: Logger;
     findUser?:
         <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
@@ -244,7 +245,9 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     return express()
         .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
         .use(cors())
-        .use(morgan(":method :url :status :res[content-length] - :response-time ms", { stream: { write: logger } }))
+        .use(morgan(opt?.morganFormat || ":method :url :status :res[content-length] - :response-time ms", {
+            stream: { write: logger }
+        }))
         .use(compression())
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
