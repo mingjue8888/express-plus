@@ -38,6 +38,9 @@ type DeepArray<T> =
 type ErrorConverter =
     (err: Error) => ResponseError | void;
 
+type Logger =
+    (str: string) => void;
+
 function errorConverter(convert?: ErrorConverter): Middleware {
     return function (
         err: Error,
@@ -114,6 +117,7 @@ interface EnvOptions {
 
 interface StartupOptions extends EnvOptions {
     errorConverter?: ErrorConverter;
+    logger?: Logger;
     findUser?:
         <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
 
@@ -236,10 +240,11 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         express.Router(),
     );
 
+    const logger = opt?.logger || console.log;
     return express()
         .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
         .use(cors())
-        .use(morgan(":method :url :status :res[content-length] - :response-time ms"))
+        .use(morgan(":method :url :status :res[content-length] - :response-time ms", { stream: { write: logger } }))
         .use(compression())
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
@@ -249,5 +254,5 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(errorConverter(defaultErrorConverter))
         .use(errorConverter(opt?.errorConverter))
         .use(errorHandler)
-        .listen(conf.APP_PORT, () => console.info(`Server startup on port: ${conf.APP_PORT}`));
+        .listen(conf.APP_PORT, () => logger(`Server startup on port: ${conf.APP_PORT}`));
 }
