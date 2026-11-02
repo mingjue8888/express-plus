@@ -171,7 +171,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     }
 
     const conf: StartupOptions =
-        Joi.attempt(opt, optSchema, { allowUnknown: true });
+        Joi.attempt(opt || {}, optSchema, { allowUnknown: true });
 
     const jwtStrategy: StrategyOptions = {
         secretOrKey: conf.JWT_SECRET,
