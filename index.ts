@@ -196,7 +196,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
 
         opt.findUser(payload.sub)
             .then(user =>
-                isOnline(user) ? user : Promise.reject(new TokenExpiredError()))
+                isOnline(user) ? user : Promise.reject(new TokenOfflineError()))
             .then(user => next(null, user))
             .catch(err => next(err, false));
     });
