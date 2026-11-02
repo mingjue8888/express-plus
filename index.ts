@@ -116,15 +116,12 @@ interface EnvOptions {
 }
 
 interface StartupOptions extends EnvOptions {
-    corsOrigins: string[];
-    errorConverter?: ErrorConverter;
-    morganFormat?: string;
+    morgan?: { format?: string; }
     logger?: Logger;
-    findUser?:
-        <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
-
-    whenTokenSigned?:
-        (payload: LoginToken, accessToken: string) => Promise<void>;
+    findUser?: <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
+    whenTokenSigned?: (payload: LoginToken, accessToken: string) => Promise<void>;
+    whenCatchError?: ErrorConverter;
+    cors?: { origin?: string | string[]; }
 }
 
 const oneSecond = 1000;
@@ -245,8 +242,8 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     const logger = opt?.logger || console.log;
     return express()
         .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
-        .use(cors({ origin: opt?.corsOrigins }))
-        .use(morgan(opt?.morganFormat || ":method :url :status :res[content-length] - :response-time ms", {
+        .use(cors({ origin: opt?.cors?.origin }))
+        .use(morgan(opt?.morgan?.format || ":method :url :status :res[content-length] - :response-time ms", {
             stream: { write: logger }
         }))
         .use(compression())
@@ -256,7 +253,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(jwtSettings)
         .use(routes)
         .use(errorConverter(defaultErrorConverter))
-        .use(errorConverter(opt?.errorConverter))
+        .use(errorConverter(opt?.whenCatchError))
         .use(errorHandler)
         .listen(conf.APP_PORT, () => logger(`Server startup on port: ${conf.APP_PORT}`));
 }
