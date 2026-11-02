@@ -138,7 +138,7 @@ const optSchema = Joi.object<StartupOptions>({
 
     APP_REQUEST_RATE_LIMIT_RANGE: Joi.number()
         .required()
-        .default(1000),
+        .default(oneSecond),
 
     JWT_SECRET: Joi.string()
         .required()
