@@ -116,6 +116,7 @@ interface EnvOptions {
 }
 
 interface StartupOptions extends EnvOptions {
+    corsOrigins: string[];
     errorConverter?: ErrorConverter;
     morganFormat?: string;
     logger?: Logger;
@@ -244,7 +245,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     const logger = opt?.logger || console.log;
     return express()
         .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
-        .use(cors())
+        .use(cors({ origin: opt?.corsOrigins }))
         .use(morgan(opt?.morganFormat || ":method :url :status :res[content-length] - :response-time ms", {
             stream: { write: logger }
         }))
