@@ -38,9 +38,6 @@ type DeepArray<T> =
 type ErrorConverter =
     (err: Error) => ResponseError | void;
 
-type Logger =
-    (str: string) => void;
-
 function errorConverter(convert?: ErrorConverter): Middleware {
     return function (
         err: Error,
@@ -117,7 +114,7 @@ interface EnvOptions {
 
 interface StartupOptions extends EnvOptions {
     morgan?: { format?: string; }
-    logger?: Logger;
+    logger?: (s: string) => void;
     findUser?: <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
     whenTokenSigned?: (payload: LoginToken, accessToken: string) => Promise<void>;
     whenCatchError?: ErrorConverter;
