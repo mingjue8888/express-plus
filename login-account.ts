@@ -5,7 +5,7 @@ export default interface LoginAccount extends RBAC0 {
     isLocked: boolean;
     isSuspended: boolean;
     isBanned: boolean;
-    LockedReason?: string;
-    SuspendedReason?: string;
-    BannedReason?: string;
+    lockedReason?: string;
+    suspendedReason?: string;
+    bannedReason?: string;
 }
