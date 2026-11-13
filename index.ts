@@ -26,17 +26,17 @@ type DeepArray<T> =
 type ResponseErrorConverter =
     (err: Error) => ResponseError | void;
 
-function errorConverter(converter?: ResponseErrorConverter): Middleware {
+function errorConverter(onError?: ResponseErrorConverter): Middleware {
     return function (
         err: Error,
         _req: express.Request,
         _res: express.Response,
         next: express.NextFunction
     ) {
-        if (converter) {
-            const resErr = converter(err);
+        if (onError) {
+            const resErr = onError(err);
             if (resErr) {
-                next(converter(err));
+                next(onError(err));
             } else {
                 next(err);
             }
