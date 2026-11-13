@@ -7,72 +7,42 @@ import Joi from "joi";
 import jwt from "jsonwebtoken";
 import _ from "lodash";
 import morgan from "morgan";
-import * as crypto from "node:crypto";
 import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
-import {
-    CannotFindUserError,
-    NotQualifiedError,
-    PermissionDeniedError,
-    TokenExpiredError,
-    TokenOfflineError,
-    WrongParamsError,
-    WrongResponseError
-} from "./errors";
-import LoginSession from "./login-session";
 import LoginToken from "./login-token";
-import JwtPayload from "./login-token";
-import LoginUser from "./login-user";
+import LoginAccount from "./login-account";
 import PermissionDeniedResponseError from "./permission-denied-response-error";
 import ResponseError from "./response-error";
 import Router from "./router";
 import ServerErrorResponseError from "./server-error-response-error";
+import TooManyRequestsResponseError from "./too-many-requests-response-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
-import WrongParamsResponseError from "./wrong-params-response-error";
 
 type DeepArray<T> =
     | T[]
     | DeepArray<T>[];
 
-type ErrorConverter =
+type ResponseErrorConverter =
     (err: Error) => ResponseError | void;
 
-function errorConverter(convert?: ErrorConverter): Middleware {
+function errorConverter(converter?: ResponseErrorConverter): Middleware {
     return function (
         err: Error,
         _req: express.Request,
         _res: express.Response,
         next: express.NextFunction
     ) {
-        if (convert) {
-            const resErr = convert(err);
+        if (converter) {
+            const resErr = converter(err);
             if (resErr) {
-                next(convert(err));
+                next(converter(err));
             } else {
                 next(err);
             }
         } else {
             next(err);
         }
-    }
-}
-
-const defaultErrorConverter: ErrorConverter = function(err: Error) {
-    if (err instanceof WrongParamsError) {
-        return new WrongParamsResponseError(err.constructor.name, err.message);
-    }
-    if (err instanceof TokenExpiredError
-        || err instanceof TokenOfflineError) {
-        return new UnauthorizedResponseError(err.constructor.name, err.message);
-    }
-    if (err instanceof PermissionDeniedError
-        || err instanceof NotQualifiedError) {
-        return new PermissionDeniedResponseError(err.constructor.name, err.message);
-    }
-    if (err instanceof CannotFindUserError
-        || err instanceof WrongResponseError) {
-        return new ServerErrorResponseError(err.constructor.name, err.message);
     }
 }
 
@@ -95,9 +65,9 @@ function errorHandler(
 
 declare global {
     namespace Express {
-        interface User extends LoginUser<LoginSession> {}
+        interface User extends LoginAccount {}
         interface Response {
-            signToken: (userid: string) => void;
+            signToken: (sub: string) => string;
             body?: any;
         }
     }
@@ -107,18 +77,14 @@ interface EnvOptions {
     APP_PORT: number;
     APP_REQUEST_RATE_LIMIT: number;
     APP_REQUEST_RATE_LIMIT_RANGE: number;
+    APP_CORS_ALLOW_ORIGIN: string;
     JWT_SECRET: string;
-    JWT_EXPIRES_IN: number;
-    JWT_EXPIRED_BEFORE_REFRESH: number;
+    JWT_EXPIRE: number;
 }
 
 interface StartupOptions extends EnvOptions {
-    morgan?: { format?: string; }
-    logger?: (s: string) => void;
-    findUser?: <T extends LoginUser<LoginSession>>(id: string) => Promise<T>;
-    whenTokenSigned?: (payload: LoginToken, accessToken: string) => Promise<void>;
-    whenCatchError?: ErrorConverter;
-    cors?: { origin?: string | string[]; }
+    authenticate?: <T extends LoginAccount>(token: LoginToken) => Promise<T>;
+    onError?: ResponseErrorConverter;
 }
 
 const oneSecond = 1000;
@@ -140,26 +106,21 @@ const optSchema = Joi.object<StartupOptions>({
         .required()
         .default(oneSecond),
 
+    APP_CORS_ALLOW_ORIGIN: Joi.string()
+        .required()
+        .default("*"),
+
     JWT_SECRET: Joi.string()
         .required()
         .default("DefaultSecret"),
 
-    JWT_EXPIRES_IN: Joi.number()
+    JWT_EXPIRE: Joi.number()
         .integer()
         .greater(0)
         .when("JWT_SECRET", {
             is: Joi.exist(),
             then: Joi.required()
-                .default(oneDay * 2)
-        }),
-
-    JWT_EXPIRED_BEFORE_REFRESH: Joi.number()
-        .integer()
-        .greater(0)
-        .when("JWT_SECRET", {
-            is: Joi.exist(),
-            then: Joi.required()
-                .default(oneHour * 2)
+                .default(oneDay * 7)
         }),
 });
 
@@ -179,53 +140,38 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         ignoreExpiration: true,
     }
 
-    const strategy = new Strategy(jwtStrategy, function (payload: JwtPayload, next) {
-        if (!opt?.findUser) {
-            next(new CannotFindUserError(), false);
+    const strategy = new Strategy(jwtStrategy, function (payload: LoginToken, next) {
+        if (!opt?.authenticate) {
+            next(new ServerErrorResponseError("AuthenticationError", "Missing authentication logic"), false);
             return;
         }
         const isExpired = (exp: number): boolean =>
             exp < Math.floor(Date.now() / 1000);
 
         if (isExpired(payload.exp)) {
-            next(new TokenExpiredError(), false);
+            next(new UnauthorizedResponseError("TokenExpiredError", "The token has expired"), false);
             return;
         }
-        const isOnline = (u: LoginUser<LoginSession>): boolean =>
-            !u.session.isLogout && u.session.token.jti === payload.jti;
 
-        opt.findUser(payload.sub)
-            .then(user =>
-                isOnline(user) ? user : Promise.reject(new TokenOfflineError()))
+        opt.authenticate(payload)
+            .then(user => user.isLocked    ? Promise.reject(new PermissionDeniedResponseError("AccountLockedError", "Your account has been locked")) : user)
+            .then(user => user.isSuspended ? Promise.reject(new PermissionDeniedResponseError("AccountSuspendedError", "Your account is disabled")) : user)
+            .then(user => user.isBanned    ? Promise.reject(new PermissionDeniedResponseError("AccountBannedError", "Your account has been permanently banned")) : user)
             .then(user => next(null, user))
             .catch(err => next(err, false));
     });
 
     passport.use(strategy);
 
-    function jwtSettings(
-        req: express.Request,
-        res: express.Response,
-        next: express.NextFunction
-    ) {
-        const now = ~~(Date.now() /1000);
-        const makeExp = () => now + conf.JWT_EXPIRES_IN;
-        const makeJti = () => crypto.randomBytes(32).toString("hex");
-        res.signToken = function(userid: string) {
-            const token = { sub: userid, exp: makeExp(), jti: makeJti() };
-            const accessToken = jwt.sign(token, userid);
-            res.header("X-New-Access-Token", accessToken);
-            opt?.whenTokenSigned?.(token, accessToken);
-        }
-        if (req.user) {
-            const tokenExp = req.user.session.token.exp;
-            const diffCurr = tokenExp - now;
-            const isNearRefreshTime =
-                diffCurr > 0 &&
-                diffCurr < conf.JWT_EXPIRED_BEFORE_REFRESH;
-            if (isNearRefreshTime) {
-                res.signToken(req.user.session.token.sub);
-            }
+    function addSignToken(_req: express.Request, res: express.Response, next: express.NextFunction) {
+        const now = Math.floor(Date.now() /1000);
+        res.signToken = (sub: string) => {
+            const payload = {
+                sub,
+                iat: now,
+                exp: now + conf.JWT_EXPIRE
+            };
+            return jwt.sign(payload, conf.JWT_SECRET);
         }
         next();
     }
@@ -236,21 +182,21 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         express.Router(),
     );
 
-    const logger = opt?.logger || console.log;
     return express()
-        .use(rateLimit({ windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT }))
-        .use(cors({ origin: opt?.cors?.origin }))
-        .use(morgan(opt?.morgan?.format || ":method :url :status :res[content-length] - :response-time ms", {
-            stream: { write: logger }
+        .use(rateLimit({
+            windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT,
+            handler: (_req, _res, next) =>
+                next(new TooManyRequestsResponseError("TooManyRequests", "Too many requests, please try again later"))
         }))
+        .use(cors({ origin: conf.APP_CORS_ALLOW_ORIGIN }))
+        .use(morgan(":method :url :status :res[content-length] - :response-time ms"))
         .use(compression())
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
         .use(passport.initialize())
-        .use(jwtSettings)
+        .use(addSignToken)
         .use(routes)
-        .use(errorConverter(defaultErrorConverter))
-        .use(errorConverter(opt?.whenCatchError))
+        .use(errorConverter(opt?.onError))
         .use(errorHandler)
-        .listen(conf.APP_PORT, () => logger(`Server startup on port: ${conf.APP_PORT}`));
+        .listen(conf.APP_PORT, () => console.info(`Server startup on port: ${conf.APP_PORT}`));
 }

@@ -1,7 +1,6 @@
 import Joi from "joi";
 import asyncMiddleware from "./async-middleware";
-import {WrongResponseError} from "./errors";
-
+import ServerErrorResponseError from "./server-error-response-error";
 
 export default function validResponse(sch: Record<string, Joi.AnySchema>) {
     return asyncMiddleware(async function (_req, res) {
@@ -10,7 +9,7 @@ export default function validResponse(sch: Record<string, Joi.AnySchema>) {
             .validate(res.body);
 
         if (error) {
-            throw new WrongResponseError(error.message);
+            throw new ServerErrorResponseError("WrongResponseError", error.message);
         }
         res.status(200).send(value);
     });
