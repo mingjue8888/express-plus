@@ -67,7 +67,7 @@ declare global {
     namespace Express {
         interface User extends LoginAccount {}
         interface Response {
-            signToken: (sub: string) => string;
+            signToken: (sub: string, onSigned?: (payload: LoginToken, token: string) => void) => void;
             body?: any;
         }
     }
@@ -165,13 +165,15 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
 
     function addSignToken(_req: express.Request, res: express.Response, next: express.NextFunction) {
         const now = Math.floor(Date.now() /1000);
-        res.signToken = (sub: string) => {
+        res.signToken = (sub: string, onSigned) => {
             const payload = {
                 sub,
                 iat: now,
                 exp: now + conf.JWT_EXPIRE
             };
-            return jwt.sign(payload, conf.JWT_SECRET);
+            const accessToken = jwt.sign(payload, conf.JWT_SECRET);
+            if (onSigned) onSigned(payload, accessToken);
+            res.status(200).send({ accessToken });
         }
         next();
     }
