@@ -1,5 +1,6 @@
 import "dotenv/config";
 import logger from "@mingjue8888/base-dependencies/logger";
+import {oneDay, oneSecond} from "@mingjue8888/base-dependencies/ubiquitous-language";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
@@ -86,13 +87,9 @@ interface EnvOptions {
 
 interface StartupOptions extends EnvOptions {
     authenticate?: <T extends LoginAccount>(token: LoginToken) => Promise<T>;
+    middlewares?: Middleware[];
     onError?: ResponseErrorConverter;
 }
-
-const oneSecond = 1000;
-const oneMinute = oneSecond * 60;
-const oneHour = oneMinute * 60;
-const oneDay = oneHour * 24;
 
 const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
     APP_PORT: Joi.number()
@@ -185,7 +182,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         express.Router(),
     );
 
-    return express()
+    const preRoute = express()
         .use(rateLimit({
             windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT,
             handler: (_req, _res, next) =>
@@ -201,7 +198,11 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
         .use(passport.initialize())
-        .use(addSignToken)
+        .use(addSignToken);
+
+    opt?.middlewares?.forEach(middleware => preRoute.use(middleware));
+
+    return preRoute
         .use(routes)
         .use(errorConverter(opt?.onError))
         .use(errorHandler)

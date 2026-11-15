@@ -1,6 +1,6 @@
 {
   "name": "@mingjue8888/express-plus",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "repository": "github:mingjue8888/express-plus",
   "dependencies": {
     "@mingjue8888/base-dependencies": "^1.1.0",
