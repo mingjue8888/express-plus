@@ -1,7 +1,8 @@
 {
   "name": "@mingjue8888/express-plus",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "repository": "github:mingjue8888/express-plus",
+  "description": "My Express",
   "dependencies": {
     "@mingjue8888/base-dependencies": "^1.2.0",
     "bcrypt": "^6.0.0",
