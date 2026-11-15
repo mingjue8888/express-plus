@@ -2,7 +2,7 @@ import Joi from "joi";
 import asyncMiddleware from "./async-middleware";
 import ServerErrorResponseError from "./server-error-response-error";
 
-export default function validResponse(sch: Record<string, Joi.AnySchema>) {
+export default function validSend(sch: Record<string, Joi.AnySchema>) {
     return asyncMiddleware(async function (_req, res) {
         const { error, value } = Joi
             .object(sch)

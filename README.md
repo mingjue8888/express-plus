@@ -29,7 +29,7 @@ import hasLogin from "@mingjue8888/express-plus/has-login";
 import Router from "@mingjue8888/express-plus/router";
 import validBody from "@mingjue8888/express-plus/valid-body";
 import validParam from "@mingjue8888/express-plus/valid-param";
-import validResponse from "@mingjue8888/express-plus/valid-response";
+import validSend from "@mingjue8888/express-plus/valid-send";
 
 // File ./routers/routerA.ts
 const login: Router = {
@@ -50,7 +50,7 @@ const login: Router = {
             const id = "UUID";
             res.signToken(id);
         }),
-        validResponse({
+        validSend({
             accessToken: Joi.string()
                 .required(),
         }),
@@ -74,7 +74,7 @@ const findUser: Router = {
         asyncMiddleware(async function (req, res) {
             throw new NotFoundUserError();
         }),
-        validResponse({
+        validSend({
             id: Joi.string()
                 .required(),
 
@@ -98,7 +98,7 @@ const findUserPosts: Router = {
                 posts: []
             }
         }),
-        validResponse({
+        validSend({
             posts: Joi.array().items(Joi.object().keys({
                 id: Joi.string().required(),
                 content: Joi.string().required().default(""),
