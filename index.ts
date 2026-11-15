@@ -1,4 +1,5 @@
 import "dotenv/config";
+import logger from "@mingjue8888/base-dependencies/logger";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
@@ -57,6 +58,7 @@ function errorHandler(
             .status(err.getHttpResponseStatus())
             .send({ error: err.error, message: err.message });
     } else {
+        logger.error(err);
         res
             .status(500)
             .send({ error: "ServerError", message: err.stack });
@@ -74,12 +76,12 @@ declare global {
 }
 
 interface EnvOptions {
-    APP_PORT: number;
-    APP_REQUEST_RATE_LIMIT: number;
-    APP_REQUEST_RATE_LIMIT_RANGE: number;
-    APP_CORS_ALLOW_ORIGIN: string;
-    JWT_SECRET: string;
-    JWT_EXPIRE: number;
+    APP_PORT?: number;
+    APP_REQUEST_RATE_LIMIT?: number;
+    APP_REQUEST_RATE_LIMIT_RANGE?: number;
+    APP_CORS_ALLOW_ORIGIN?: string;
+    JWT_SECRET?: string;
+    JWT_EXPIRE?: number;
 }
 
 interface StartupOptions extends EnvOptions {
@@ -92,7 +94,7 @@ const oneMinute = oneSecond * 60;
 const oneHour = oneMinute * 60;
 const oneDay = oneHour * 24;
 
-const optSchema = Joi.object<StartupOptions>({
+const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
     APP_PORT: Joi.number()
         .integer()
         .required()
@@ -131,7 +133,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
             .forEach(key => Reflect.set(opt, key, process.env[key as string]));
     }
 
-    const conf: StartupOptions =
+    const conf: Required<StartupOptions> =
         Joi.attempt(opt || {}, optSchema, { allowUnknown: true });
 
     const jwtStrategy: StrategyOptions = {
@@ -190,7 +192,11 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
                 next(new TooManyRequestsResponseError("TooManyRequests", "Too many requests, please try again later"))
         }))
         .use(cors({ origin: conf.APP_CORS_ALLOW_ORIGIN }))
-        .use(morgan(":method :url :status :res[content-length] - :response-time ms"))
+        .use(morgan(":method :url :status :res[content-length] - :response-time ms", {
+            stream: {
+                write: message => logger.http(message.trim())
+            }
+        }))
         .use(compression())
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
@@ -199,5 +205,5 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(routes)
         .use(errorConverter(opt?.onError))
         .use(errorHandler)
-        .listen(conf.APP_PORT, () => console.info(`Server startup on port: ${conf.APP_PORT}`));
+        .listen(conf.APP_PORT, () => logger.info(`Server startup on port: ${conf.APP_PORT}`));
 }
