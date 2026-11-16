@@ -20,13 +20,6 @@ import ServerErrorResponseError from "./server-error-response-error";
 import TooManyRequestsResponseError from "./too-many-requests-response-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
 
-type DeepArray<T> =
-    | T[]
-    | DeepArray<T>[];
-
-type JWTPayload =
-    Required<Pick<JwtPayload, "exp" | "sub" | "iat">>;
-
 type ResponseErrorConverter =
     (err: Error) => ResponseError | void;
 
@@ -87,6 +80,9 @@ interface EnvOptions {
     JWT_EXPIRE?: number;
 }
 
+type JWTPayload =
+    Required<Pick<JwtPayload, "exp" | "sub" | "iat">>;
+
 interface StartupOptions extends EnvOptions {
     authenticate?: <T extends RBAC0Account>(token: JWTPayload) => Promise<T>;
     middlewares?: Middleware[];
@@ -124,6 +120,10 @@ const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
                 .default(oneDay * 7)
         }),
 });
+
+type DeepArray<T> =
+    | T[]
+    | DeepArray<T>[];
 
 export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     if (opt) {
