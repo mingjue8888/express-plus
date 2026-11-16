@@ -8,9 +8,10 @@ export default function validSend(sch: Record<string, Joi.AnySchema>) {
             .object(sch)
             .validate(res.body);
 
-        if (error) {
+        if (error)
             throw new ServerErrorResponseError("WrongResponseError", error.message);
-        }
-        res.status(200).send(value);
+
+        res.status(200)
+            .send(value);
     });
 }
