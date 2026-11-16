@@ -1,6 +1,7 @@
 import "dotenv/config";
+import {oneDay, oneSecond} from "@mingjue8888/base-dependencies/datetime";
 import logger from "@mingjue8888/base-dependencies/logger";
-import {AbstractAccount, oneDay, oneSecond} from "@mingjue8888/base-dependencies/ubiquitous-language";
+import {RBAC0Account} from "@mingjue8888/base-dependencies/rbac0";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
@@ -69,7 +70,7 @@ function errorHandler(
 
 declare global {
     namespace Express {
-        interface User extends AbstractAccount {}
+        interface User extends RBAC0Account {}
         interface Response {
             signToken: (sub: string) => void;
             body?: any;
@@ -87,7 +88,7 @@ interface EnvOptions {
 }
 
 interface StartupOptions extends EnvOptions {
-    authenticate?: <T extends AbstractAccount>(token: JWTPayload) => Promise<T>;
+    authenticate?: <T extends RBAC0Account>(token: JWTPayload) => Promise<T>;
     middlewares?: Middleware[];
     onError?: ResponseErrorConverter;
 }
