@@ -1,19 +1,17 @@
 import "dotenv/config";
 import logger from "@mingjue8888/base-dependencies/logger";
-import {oneDay, oneSecond} from "@mingjue8888/base-dependencies/ubiquitous-language";
+import {AbstractAccount, oneDay, oneSecond} from "@mingjue8888/base-dependencies/ubiquitous-language";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import Joi from "joi";
-import jwt from "jsonwebtoken";
+import jwt, {JwtPayload} from "jsonwebtoken";
 import _ from "lodash";
 import morgan from "morgan";
 import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
-import LoginAccount from "./login-account";
-import LoginToken from "./login-token";
 import PermissionDeniedResponseError from "./permission-denied-response-error";
 import ResponseError from "./response-error";
 import Router from "./router";
@@ -24,6 +22,9 @@ import UnauthorizedResponseError from "./unauthorized-response-error";
 type DeepArray<T> =
     | T[]
     | DeepArray<T>[];
+
+type JWTPayload =
+    Required<Pick<JwtPayload, "exp" | "sub" | "iat">>;
 
 type ResponseErrorConverter =
     (err: Error) => ResponseError | void;
@@ -68,7 +69,7 @@ function errorHandler(
 
 declare global {
     namespace Express {
-        interface User extends LoginAccount {}
+        interface User extends AbstractAccount {}
         interface Response {
             signToken: (sub: string) => void;
             body?: any;
@@ -86,7 +87,7 @@ interface EnvOptions {
 }
 
 interface StartupOptions extends EnvOptions {
-    authenticate?: <T extends LoginAccount>(token: LoginToken) => Promise<T>;
+    authenticate?: <T extends AbstractAccount>(token: JWTPayload) => Promise<T>;
     middlewares?: Middleware[];
     onError?: ResponseErrorConverter;
 }
@@ -139,7 +140,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         ignoreExpiration: true,
     }
 
-    const strategy = new Strategy(jwtStrategy, function (payload: LoginToken, next) {
+    const strategy = new Strategy(jwtStrategy, function (payload: JWTPayload, next) {
         if (!opt?.authenticate) {
             next(new ServerErrorResponseError("AuthenticationError", "Missing authentication logic"), false);
             return;

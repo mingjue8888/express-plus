@@ -1,8 +1,7 @@
 {
   "name": "@mingjue8888/express-plus",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "repository": "github:mingjue8888/express-plus",
-  "description": "My Express",
   "keywords": [
     "web",
     "app",
@@ -13,8 +12,7 @@
     "router"
   ],
   "dependencies": {
-    "@mingjue8888/base-dependencies": "^1.2.0",
-    "bcrypt": "^6.0.0",
+    "@mingjue8888/base-dependencies": "^1.5.2",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "express-rate-limit": "^8.7.4",
@@ -24,7 +22,6 @@
     "passport-jwt": "^4.0.1"
   },
   "devDependencies": {
-    "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
