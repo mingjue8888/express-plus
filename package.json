@@ -1,6 +1,6 @@
 {
   "name": "@mingjue8888/express-plus",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "repository": "github:mingjue8888/express-plus",
   "keywords": [
     "web",
@@ -13,6 +13,12 @@
   ],
   "dependencies": {
     "@mingjue8888/base-dependencies": "^1.5.5",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/passport": "^1.0.17",
+    "@types/passport-jwt": "^4.0.1",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "express-rate-limit": "^8.7.4",
@@ -20,13 +26,5 @@
     "morgan": "^1.12.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1"
-  },
-  "devDependencies": {
-    "@types/compression": "^1.8.1",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/morgan": "^1.9.10",
-    "@types/passport": "^1.0.17",
-    "@types/passport-jwt": "^4.0.1"
   }
 }
