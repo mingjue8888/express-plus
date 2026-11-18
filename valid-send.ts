@@ -4,14 +4,11 @@ import ServerErrorResponseError from "./server-error-response-error";
 
 export default function validSend(sch: Record<string, Joi.AnySchema>) {
     return asyncMiddleware(async function (_req, res) {
-        const { error, value } = Joi
-            .object(sch)
-            .validate(res.body);
-
-        if (error)
-            throw new ServerErrorResponseError("WrongResponseError", error.message);
+        const data = await Joi.object(sch)
+            .validateAsync(res.body)
+            .catch(err => new ServerErrorResponseError("WrongResponseError", err.message));
 
         res.status(200)
-            .send(value);
+            .send(data);
     });
 }

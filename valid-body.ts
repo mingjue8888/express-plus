@@ -4,13 +4,8 @@ import WrongParamsResponseError from "./wrong-params-response-error";
 
 export default function validBody(sch: Record<string, Joi.AnySchema>) {
     return asyncMiddleware(async function (req, _res) {
-        const { error, value } = Joi
-            .object(sch)
-            .validate(req.body, { allowUnknown: true });
-
-        if (error) {
-            throw new WrongParamsResponseError("WrongParamsError", error.message);
-        }
-        req.valid.body = value;
+        req.valid.body = await Joi.object(sch)
+            .validateAsync(req.body, { allowUnknown: true })
+            .catch(err => new WrongParamsResponseError("WrongParamsError", err.message));
     });
 }

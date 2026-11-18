@@ -12,7 +12,7 @@
     "router"
   ],
   "dependencies": {
-    "@mingjue8888/base-dependencies": "^1.5.5",
+    "@mingjue8888/base-dependencies": "^1.6.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
