@@ -92,23 +92,18 @@ interface StartupOptions extends EnvOptions {
 const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
     APP_PORT: Joi.number()
         .integer()
-        .required()
         .default(8086),
 
     APP_REQUEST_RATE_LIMIT: Joi.number()
-        .required()
         .default(20),
 
     APP_REQUEST_RATE_LIMIT_RANGE: Joi.number()
-        .required()
         .default(oneSecond),
 
     APP_CORS_ALLOW_ORIGIN: Joi.string()
-        .required()
         .default("*"),
 
     JWT_SECRET: Joi.string()
-        .required()
         .default("DefaultSecret"),
 
     JWT_EXPIRE: Joi.number()
