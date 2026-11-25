@@ -109,11 +109,7 @@ const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
     JWT_EXPIRE: Joi.number()
         .integer()
         .greater(0)
-        .when("JWT_SECRET", {
-            is: Joi.exist(),
-            then: Joi.required()
-                .default(oneDay * 7)
-        }),
+        .default(oneDay * 7),
 });
 
 type DeepArray<T> =
