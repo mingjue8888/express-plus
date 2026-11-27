@@ -1,7 +1,5 @@
 import "dotenv/config";
-import {oneDay, oneSecond} from "@mingjue8888/base-dependencies/datetime";
 import logger from "@mingjue8888/base-dependencies/logger";
-import {RBAC0Account} from "@mingjue8888/base-dependencies/rbac0";
 import compression from "compression";
 import cors from "cors";
 import express from "express";
@@ -14,16 +12,14 @@ import passport from "passport";
 import {ExtractJwt, Strategy, StrategyOptions} from "passport-jwt";
 import {Middleware} from "./async-middleware";
 import PermissionDeniedResponseError from "./permission-denied-response-error";
+import {LoginAccount} from "./rbac0";
 import ResponseError from "./response-error";
 import Router from "./router";
 import ServerErrorResponseError from "./server-error-response-error";
 import TooManyRequestsResponseError from "./too-many-requests-response-error";
 import UnauthorizedResponseError from "./unauthorized-response-error";
 
-type ResponseErrorConverter =
-    (err: Error) => ResponseError | void;
-
-function errorConverter(onError?: ResponseErrorConverter): Middleware {
+function errorConverter(onError?: (err: Error) => ResponseError | void): Middleware {
     return function (
         err: Error,
         _req: express.Request,
@@ -63,9 +59,9 @@ function errorHandler(
 
 declare global {
     namespace Express {
-        interface User extends RBAC0Account {}
+        interface User extends LoginAccount {}
         interface Response {
-            signToken: (sub: string) => void;
+            signToken: (sub: string) => { accessToken: string; jwtPayload: JWTPayload; };
             body?: any;
         }
     }
@@ -81,12 +77,11 @@ interface EnvOptions {
 }
 
 type JWTPayload =
-    Required<Pick<JwtPayload, "exp" | "sub" | "iat">>;
+    Required<Pick<JwtPayload, "exp" | "sub" | "iat" | "jti">>;
 
 interface StartupOptions extends EnvOptions {
-    authenticate?: <T extends RBAC0Account>(token: JWTPayload) => Promise<T>;
-    middlewares?: Middleware[];
-    onError?: ResponseErrorConverter;
+    authenticate?: <T extends LoginAccount>(token: JWTPayload) => Promise<T>;
+    onError?: (err: Error) => ResponseError | void;
 }
 
 const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
@@ -98,7 +93,7 @@ const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
         .default(20),
 
     APP_REQUEST_RATE_LIMIT_RANGE: Joi.number()
-        .default(oneSecond),
+        .default(1000),
 
     APP_CORS_ALLOW_ORIGIN: Joi.string()
         .default("*"),
@@ -109,7 +104,7 @@ const optSchema = Joi.object<Required<StartupOptions>, StartupOptions>({
     JWT_EXPIRE: Joi.number()
         .integer()
         .greater(0)
-        .default(oneDay * 7),
+        .default(1000 * 60 * 60 * 24 * 7),
 });
 
 type DeepArray<T> =
@@ -146,9 +141,8 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         }
 
         opt.authenticate(payload)
-            .then(user => user.isLocked    ? Promise.reject(new PermissionDeniedResponseError("AccountLockedError", "Your account has been locked")) : user)
-            .then(user => user.isSuspended ? Promise.reject(new PermissionDeniedResponseError("AccountSuspendedError", "Your account is disabled")) : user)
-            .then(user => user.isBanned    ? Promise.reject(new PermissionDeniedResponseError("AccountBannedError", "Your account has been permanently banned")) : user)
+            .then(user => user.isUnauthorized ? Promise.reject(new UnauthorizedResponseError(user.unauthorizedError, user.unauthorizedMessage)) : user)
+            .then(user => user.isLocked ? Promise.reject(new PermissionDeniedResponseError(user.lockedError, user.lockedMessage)) : user)
             .then(user => next(null, user))
             .catch(err => next(err, false));
     });
@@ -156,15 +150,16 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
     passport.use(strategy);
 
     function addSignToken(_req: express.Request, res: express.Response, next: express.NextFunction) {
-        const now = Math.floor(Date.now() /1000);
         res.signToken = (sub: string) => {
-            const payload = {
+            const now = Math.floor(Date.now() /1000);
+            const jwtPayload = {
                 sub,
                 iat: now,
-                exp: now + conf.JWT_EXPIRE
+                exp: now + conf.JWT_EXPIRE,
+                jti: crypto.randomUUID().replaceAll("-", ""),
             };
-            const accessToken = jwt.sign(payload, conf.JWT_SECRET);
-            res.body = { accessToken };
+            const accessToken = jwt.sign(jwtPayload, conf.JWT_SECRET);
+            return { accessToken, jwtPayload };
         }
         next();
     }
@@ -175,11 +170,11 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         express.Router(),
     );
 
-    const preRoute = express()
+     express()
         .use(rateLimit({
             windowMs: conf.APP_REQUEST_RATE_LIMIT_RANGE, limit: conf.APP_REQUEST_RATE_LIMIT,
             handler: (_req, _res, next) =>
-                next(new TooManyRequestsResponseError("TooManyRequests", "Too many requests, please try again later"))
+                next(new TooManyRequestsResponseError("TooManyRequestsError", "Too many requests, please try again later"))
         }))
         .use(cors({ origin: conf.APP_CORS_ALLOW_ORIGIN }))
         .use(morgan(":method :url :status :res[content-length] - :response-time ms", {
@@ -191,11 +186,7 @@ export default function app(routers: DeepArray<Router>, opt?: StartupOptions) {
         .use(express.urlencoded({ extended: true }))
         .use(express.json())
         .use(passport.initialize())
-        .use(addSignToken);
-
-    opt?.middlewares?.forEach(middleware => preRoute.use(middleware));
-
-    return preRoute
+        .use(addSignToken)
         .use(routes)
         .use(errorConverter(opt?.onError))
         .use(errorHandler)

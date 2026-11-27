@@ -1,6 +1,6 @@
 {
   "name": "@mingjue8888/express-plus",
-  "version": "1.3.7",
+  "version": "1.4.0",
   "repository": "github:mingjue8888/express-plus",
   "keywords": [
     "web",
@@ -12,7 +12,7 @@
     "router"
   ],
   "dependencies": {
-    "@mingjue8888/base-dependencies": "^1.7.0",
+    "@mingjue8888/base-dependencies": "^2.0.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
